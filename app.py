@@ -1,6 +1,7 @@
 from flask import Flask, request, render_template, render_template_string, send_from_directory, url_for
 import yt_dlp
 import os
+import shutil  # Para empaquetar en ZIP
 
 app = Flask(__name__)
 DOWNLOAD_FOLDER = 'static/downloads/'
@@ -84,7 +85,8 @@ def download_selected():
     if not playlists:
         return "Error: No seleccionaste ninguna canción para descargar."
 
-    response_message = "<h3>Estado de la descarga:</h3>"
+    # Creamos una lista para guardar los directorios de cada playlist
+    playlist_folders = []
 
     for playlist_url, songs in playlists.items():
         try:
@@ -96,20 +98,29 @@ def download_selected():
             if not os.path.exists(playlist_folder):
                 os.makedirs(playlist_folder)
 
-            response_message += f"<h4>Descargando playlist: {playlist_title}</h4>"
+            playlist_folders.append(playlist_folder)
 
             for index, song_url in enumerate(songs, start=1):
                 try:
                     download_status = download_and_convert(song_url, playlist_folder)
-                    response_message += f"<p>{'✔' if download_status else '❌'} {song_url}</p>"
                 except Exception as e:
-                    response_message += f"<p>❌ Error: {e}</p>"
+                    print(f"Error descargando {song_url}: {e}")
 
         except Exception as e:
-            response_message += f"<p>Error procesando '{playlist_url}': {e}</p>"
+            print(f"Error procesando '{playlist_url}': {e}")
 
-    response_message += "<p>Descarga completada.</p>"
-    return render_template_string(response_message)
+    # Empaquetar en ZIP
+    zip_filename = 'playlists.zip'
+    zip_filepath = os.path.join(DOWNLOAD_FOLDER, zip_filename)
+
+    with shutil.ZipFile(zip_filepath, 'w') as zipf:
+        for folder in playlist_folders:
+            for root, dirs, files in os.walk(folder):
+                for file in files:
+                    zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), folder))
+
+    # Enviar el ZIP al navegador
+    return send_from_directory(DOWNLOAD_FOLDER, zip_filename, as_attachment=True)
 
 def download_and_convert(video_url, playlist_folder):
     try:
@@ -130,6 +141,10 @@ def download_and_convert(video_url, playlist_folder):
     except Exception as e:
         print(f"Error: {e}")
         return False
+
+@app.route('/downloads/<filename>')
+def download_file(filename):
+    return send_from_directory(DOWNLOAD_FOLDER, filename)
 
 if __name__ == '__main__':
     app.run(debug=True)

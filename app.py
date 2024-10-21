@@ -74,7 +74,7 @@ def download_selected():
 
     try:
         # Crear un directorio temporal para la playlist
-        playlist_title = playlist_url.split('/')[-1]  # O alguna otra lógica para el título
+        playlist_title = playlist_url.split('/')[-1]  # Extraer el título de la playlist
         temp_folder = os.path.join(DOWNLOAD_FOLDER, playlist_title)
         os.makedirs(temp_folder, exist_ok=True)
 
@@ -84,14 +84,22 @@ def download_selected():
         # Descargar cada canción seleccionada
         for index, song_url in enumerate(selected_songs, start=1):
             try:
-                with yt_dlp.YoutubeDL() as ydl:
+                with yt_dlp.YoutubeDL({
+                    'format': 'bestaudio/best',
+                    'outtmpl': os.path.join(temp_folder, '%(title)s.%(ext)s'),
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '192',
+                    }],
+                    'quiet': True
+                }) as ydl:
                     song_info = ydl.extract_info(song_url, download=True)
                     song_title = song_info['title']
-                    file_path = os.path.join(temp_folder, f"{song_title}.mp3")
-                    downloaded_files.append(file_path)
+                    downloaded_files.append(os.path.join(temp_folder, f"{song_title}.mp3"))
                     response_message += f"<p>✔ Descargando ({index}/{len(selected_songs)}): {song_title}</p>"
             except Exception as e:
-                response_message += f"<p>❌ Error descargando: {song_title}. Error: {e}</p>"
+                response_message += f"<p>❌ Error descargando: {song_url}. Error: {e}</p>"
 
         # Crear el archivo ZIP con las canciones descargadas
         zip_filename = os.path.join(DOWNLOAD_FOLDER, f"{playlist_title}.zip")

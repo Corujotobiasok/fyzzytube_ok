@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: youtube-music-downloader
+    env: python
+    buildCommand: ""
+    startCommand: gunicorn -w 4 app:app

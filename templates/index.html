@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Descargar Playlist de YouTube Music</title>
+    <style>
+        /* Asegura que el texto en el textarea comience desde arriba */
+        textarea {
+            resize: none; /* Evita que el usuario cambie el tamaño manualmente */
+            height: 200px;
+            width: 600px;
+            padding: 10px;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        button {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Descargar Playlist de YouTube Music</h1>
+    <form action="/playlist" method="POST">
+        <label for="playlist_url">Ingresa la URL de la playlist de YouTube Music:</label><br>
+        <textarea id="playlist_url" name="playlist_url" required></textarea>
+        <br>
+        <button type="submit">Mostrar Playlist</button>
+    </form>
+</body>
+</html>

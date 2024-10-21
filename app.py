@@ -1,8 +1,8 @@
-from flask import Flask, request, render_template, render_template_string, send_from_directory, url_for
-import yt_dlp
 import os
+import yt_dlp
 import zipfile
 import shutil
+from flask import Flask, request, render_template, render_template_string, send_from_directory, url_for
 
 app = Flask(__name__)
 DOWNLOAD_FOLDER = 'static/downloads/'
@@ -25,7 +25,7 @@ def show_playlist():
 
     try:
         # Extrae información de la playlist
-        with yt_dlp.YoutubeDL({'extract_flat': 'in_playlist'}) as ydl:
+        with yt_dlp.YoutubeDL({'extract_flat': 'in_playlist', 'cookiefile': 'cookies.txt'}) as ydl:
             playlist_info = ydl.extract_info(playlist_url, download=False)
             songs = playlist_info['entries']
             playlist_title = playlist_info['title']
@@ -92,7 +92,8 @@ def download_selected():
                         'preferredcodec': 'mp3',
                         'preferredquality': '192',
                     }],
-                    'quiet': True
+                    'quiet': True,
+                    'cookiefile': 'cookies.txt'  # Agregar aquí el uso de cookies
                 }) as ydl:
                     song_info = ydl.extract_info(song_url, download=True)
                     song_title = song_info['title']

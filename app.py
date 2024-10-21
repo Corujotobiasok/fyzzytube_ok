@@ -1,8 +1,8 @@
 from flask import Flask, request, render_template, render_template_string, send_from_directory, url_for
 import yt_dlp
 import os
-import shutil
 import zipfile
+import shutil
 
 app = Flask(__name__)
 DOWNLOAD_FOLDER = 'static/downloads/'
@@ -18,15 +18,12 @@ def index():
 @app.route('/playlist', methods=['POST'])
 def show_playlist():
     playlist_urls = request.form['playlist_url'].split(',')
-    response_message = ""
 
+    response_message = "<h3>Selecciona las canciones para descargar:</h3>"
     for playlist_url in playlist_urls:
-        playlist_url = playlist_url.strip()  # Elimina espacios en blanco
-
-        # Verifica si es una URL válida de YouTube Music
+        playlist_url = playlist_url.strip()
         if 'music.youtube.com' not in playlist_url:
-            response_message += f"Error: {playlist_url} no es una URL válida de YouTube Music.<br>"
-            continue
+            return "Error: Por favor ingresa URLs válidas de YouTube Music."
 
         try:
             # Extrae información de la playlist
@@ -34,26 +31,24 @@ def show_playlist():
                 playlist_info = ydl.extract_info(playlist_url, download=False)
                 songs = playlist_info['entries']
                 playlist_title = playlist_info['title']
-                playlist_thumbnail = playlist_info.get('thumbnail', '')
 
-                response_message += f"<h3>{playlist_title}</h3>"
-                if playlist_thumbnail:
-                    response_message += f'<img src="{playlist_thumbnail}" alt="Carátula de la playlist" width="300" height="300"><br>'
-
-                response_message += f"<h4>Playlist contiene {len(songs)} canciones:</h4>"
-                response_message += f'<form action="/download_selected" method="post">'
-                response_message += f'<input type="hidden" name="playlist_url_{playlist_title}" value="{playlist_url}">'
+                response_message += f"<h4>{playlist_title}</h4>"
+                response_message += f'<input type="hidden" name="playlist_url" value="{playlist_url}">'
+                response_message += '<div>'
 
                 # Mostrar lista de canciones con checkboxes para seleccionar cuáles descargar
                 for index, song in enumerate(songs, start=1):
                     song_title = song['title']
                     response_message += f'<input type="checkbox" name="song_{playlist_url}" value="{song["url"]}" checked> {index}. {song_title}<br>'
 
-                response_message += '<br><button type="submit">Descargar Todas las Playlists</button>'
-                response_message += '</form><br>'
+                response_message += '<button type="button" onclick="toggleCheckboxes(this)">Seleccionar/Deseleccionar todas</button>'
+                response_message += '</div><br>'
 
         except Exception as e:
-            response_message += f"Error al procesar {playlist_url}: {e}<br>"
+            return f"Error: {e}"
+
+    response_message += '<br><button type="submit">Descargar Seleccionadas</button>'
+    response_message += '</form>'
 
     return render_template_string(response_message)
 
@@ -63,9 +58,9 @@ def download_selected():
         playlists = {}
         # Captura las canciones seleccionadas por cada playlist
         for key in request.form.keys():
-            if key.startswith('playlist_url'):
-                playlist_url = request.form[key]
-                selected_songs = request.form.getlist(f'song_{playlist_url}')
+            if key.startswith('song_'):
+                playlist_url = key.split('_', 1)[1]  # Extrae la URL de la clave
+                selected_songs = request.form.getlist(key)
                 if selected_songs:
                     playlists[playlist_url] = selected_songs
 
@@ -83,8 +78,9 @@ def download_selected():
 
             # Descargar cada canción seleccionada
             for index, song_url in enumerate(selected_songs, start=1):
-                with yt_dlp.YoutubeDL() as ydl:
-                    try:
+                song_title = ""  # Inicializa song_title
+                try:
+                    with yt_dlp.YoutubeDL() as ydl:
                         song_info = ydl.extract_info(song_url, download=False)
                         song_title = song_info['title']
                         response_message += f"<p>Descargando ({index}/{len(selected_songs)}): {song_title}</p>"
@@ -92,8 +88,11 @@ def download_selected():
                         download_and_convert(song_url, playlist_folder)
 
                         response_message += f"<p>✔ {song_title} descargado correctamente.</p>"
-                    except Exception as e:
+                except Exception as e:
+                    if song_title:  # Solo accede a song_title si ha sido definido
                         response_message += f"<p>❌ Error descargando: {song_title}. Error: {e}</p>"
+                    else:
+                        response_message += f"<p>❌ Error al procesar la canción. Error: {e}</p>"
 
         # Comprimir todas las carpetas en un archivo ZIP
         zip_file_path = os.path.join(DOWNLOAD_FOLDER, 'playlists.zip')
@@ -113,11 +112,11 @@ def download_selected():
     except Exception as e:
         return f"Error: {e}"
 
-def download_and_convert(video_url, output_folder):
+def download_and_convert(video_url, playlist_folder):
     try:
         ydl_opts = {
             'format': 'bestaudio/best',  # Descargar solo el mejor audio
-            'outtmpl': os.path.join(output_folder, '%(title)s.%(ext)s'),
+            'outtmpl': os.path.join(playlist_folder, '%(title)s.%(ext)s'),
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -127,11 +126,8 @@ def download_and_convert(video_url, output_folder):
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])
-        return True
-
     except Exception as e:
         print(f"Error descargando {video_url}: {e}")
-        return False
 
 @app.route('/downloads/<filename>')
 def download_file(filename):

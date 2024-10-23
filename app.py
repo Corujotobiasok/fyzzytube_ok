@@ -128,7 +128,7 @@ def download_and_convert(video_url, playlist_folder):
                 'preferredquality': '192',
             }],
             'cookiefile': COOKIES_FILE,
-            'verbose': True
+            'verbose': True  # Activa la salida detallada
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])

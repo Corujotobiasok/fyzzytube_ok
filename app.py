@@ -99,7 +99,16 @@ def download_selected():
             except Exception as e:
                 print(f"Error descargando {song_url}: {e}")
 
-        return f"Descargas completadas para la playlist: {playlist_title}. <br> <a href='/downloads/{playlist_title}'>Descargar Carpeta de Canciones</a>"
+        # Empaquetar en ZIP
+        zip_filename = f"{playlist_title}.zip"
+        zip_filepath = os.path.join(DOWNLOAD_FOLDER, zip_filename)
+
+        with shutil.ZipFile(zip_filepath, 'w') as zipf:
+            for root, dirs, files in os.walk(playlist_folder):
+                for file in files:
+                    zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), playlist_folder))
+
+        return f"Descargas completadas para la playlist: {playlist_title}. <br> <a href='/downloads/{zip_filename}'>Descargar ZIP</a>"
     
     except Exception as e:
         return f"Error: {e}"
@@ -123,9 +132,9 @@ def download_and_convert(video_url, playlist_folder):
     except Exception as e:
         print(f"Error descargando {video_url}: {e}")
 
-@app.route('/downloads/<foldername>')
-def download_folder(foldername):
-    return send_from_directory(DOWNLOAD_FOLDER, foldername)
+@app.route('/downloads/<filename>')
+def download_file(filename):
+    return send_from_directory(DOWNLOAD_FOLDER, filename)
 
 if __name__ == '__main__':
     app.run(debug=True)

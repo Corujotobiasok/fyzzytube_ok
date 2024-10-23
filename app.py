@@ -99,17 +99,7 @@ def download_selected():
             except Exception as e:
                 print(f"Error descargando {song_url}: {e}")
 
-        # Empaquetar la carpeta en un ZIP después de las descargas
-        zip_filename = f"{playlist_title}.zip"
-        zip_filepath = os.path.join(DOWNLOAD_FOLDER, zip_filename)
-
-        # Solo empaquetamos si la carpeta no está vacía
-        if os.listdir(playlist_folder):
-            shutil.make_archive(zip_filepath.replace('.zip', ''), 'zip', playlist_folder)
-        else:
-            return "Error: No se encontraron archivos para empaquetar."
-
-        return f"Descargas completadas para la playlist: {playlist_title}. <a href='/downloads/{zip_filename}'>Descargar ZIP</a>"
+        return f"Descargas completadas para la playlist: {playlist_title}. <br> <a href='/downloads/{playlist_title}'>Descargar Carpeta de Canciones</a>"
     
     except Exception as e:
         return f"Error: {e}"
@@ -133,9 +123,9 @@ def download_and_convert(video_url, playlist_folder):
     except Exception as e:
         print(f"Error descargando {video_url}: {e}")
 
-@app.route('/downloads/<filename>')
-def download_file(filename):
-    return send_from_directory(DOWNLOAD_FOLDER, filename)
+@app.route('/downloads/<foldername>')
+def download_folder(foldername):
+    return send_from_directory(DOWNLOAD_FOLDER, foldername)
 
 if __name__ == '__main__':
     app.run(debug=True)

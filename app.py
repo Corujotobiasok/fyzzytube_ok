@@ -93,6 +93,7 @@ def download_selected():
         if not os.path.exists(playlist_folder):
             os.makedirs(playlist_folder)
 
+        # Descarga las canciones en la carpeta de la playlist
         for song_url in songs:
             try:
                 download_and_convert(song_url, playlist_folder)

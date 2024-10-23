@@ -12,7 +12,6 @@ COOKIES_FILE = 'cookies.txt'
 if not os.path.exists(DOWNLOAD_FOLDER):
     os.makedirs(DOWNLOAD_FOLDER)
 
-# Verificar si FFmpeg está instalado
 def check_ffmpeg():
     try:
         subprocess.run(['ffmpeg', '-version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -30,62 +29,56 @@ def index():
 
 @app.route('/playlist', methods=['POST'])
 def show_playlist():
-    try:
-        playlist_urls = request.form['playlist_url'].split(',')
-        response_message = ''
+    playlist_urls = request.form['playlist_url'].split(',')
+    response_message = ''
 
-        for playlist_url in playlist_urls:
-            playlist_url = playlist_url.strip()
+    for playlist_url in playlist_urls:
+        playlist_url = playlist_url.strip()
+        
+        if 'music.youtube.com' not in playlist_url:
+            response_message += f"Error: La URL '{playlist_url}' no es válida para YouTube Music.<br>"
+            continue
 
-            if 'music.youtube.com' not in playlist_url:
-                response_message += f"Error: La URL '{playlist_url}' no es válida para YouTube Music.<br>"
-                continue
+        try:
+            # Extrae información de la playlist
+            with yt_dlp.YoutubeDL({'extract_flat': 'in_playlist', 'cookiefile': COOKIES_FILE}) as ydl:
+                playlist_info = ydl.extract_info(playlist_url, download=False)
+                songs = playlist_info['entries']
+                playlist_title = playlist_info['title']
+                
+                response_message += f"<h3>{playlist_title}</h3>"
+                response_message += '<form action="/download_selected" method="post">'
+                response_message += f'<input type="hidden" name="playlist_title" value="{playlist_title}">'
+                response_message += '<input type="button" value="Seleccionar Todas" onclick="checkAll(this)">'
+                response_message += '<input type="button" value="Desmarcar Todas" onclick="uncheckAll(this)"><br>'
 
-            try:
-                # Extrae información de la playlist
-                with yt_dlp.YoutubeDL({'extract_flat': 'in_playlist', 'cookiefile': COOKIES_FILE}) as ydl:
-                    playlist_info = ydl.extract_info(playlist_url, download=False)
-                    songs = playlist_info['entries']
-                    playlist_title = playlist_info['title']
+                for index, song in enumerate(songs, start=1):
+                    song_title = song['title']
+                    response_message += f'<input type="checkbox" name="song" value="{song["url"]}" checked> {index}. {song_title}<br>'
 
-                    response_message += f"<h3>{playlist_title}</h3>"
-                    response_message += '<form action="/download_selected" method="post">'
-                    response_message += f'<input type="hidden" name="playlist_title" value="{playlist_title}">'
-                    response_message += '<input type="button" value="Seleccionar Todas" onclick="checkAll(this)">'
-                    response_message += '<input type="button" value="Desmarcar Todas" onclick="uncheckAll(this)"><br>'
-
-                    for index, song in enumerate(songs, start=1):
-                        song_title = song['title']
-                        response_message += f'<input type="checkbox" name="song" value="{song["url"]}" checked> {index}. {song_title}<br>'
-
-                    response_message += '<br><button type="submit">Descargar Seleccionadas</button>'
-                    response_message += '</form>'
-                    response_message += '''
-                    <script>
-                    function checkAll(source) {
-                        checkboxes = document.getElementsByName("song");
-                        for (var i = 0, n = checkboxes.length; i < n; i++) {
-                            checkboxes[i].checked = true;
-                        }
+                response_message += '<br><button type="submit">Descargar Seleccionadas</button>'
+                response_message += '</form>'
+                response_message += '''
+                <script>
+                function checkAll(source) {
+                    checkboxes = document.getElementsByName("song");
+                    for (var i = 0, n = checkboxes.length; i < n; i++) {
+                        checkboxes[i].checked = true;
                     }
-                    function uncheckAll(source) {
-                        checkboxes = document.getElementsByName("song");
-                        for (var i = 0, n = checkboxes.length; i < n; i++) {
-                            checkboxes[i].checked = false;
-                        }
+                }
+                function uncheckAll(source) {
+                    checkboxes = document.getElementsByName("song");
+                    for (var i = 0, n = checkboxes.length; i < n; i++) {
+                        checkboxes[i].checked = false;
                     }
-                    </script>
-                    '''
+                }
+                </script>
+                '''
 
-            except Exception as e:
-                app.logger.error(f"Error procesando '{playlist_url}': {e}")
-                response_message += f"Error procesando '{playlist_url}': {e}<br>"
+        except Exception as e:
+            response_message += f"Error procesando '{playlist_url}': {e}<br>"
 
-        return render_template_string(response_message)
-
-    except Exception as e:
-        app.logger.error(f"Error en show_playlist: {e}")
-        return f"Error en show_playlist: {e}"
+    return render_template_string(response_message)
 
 @app.route('/download_selected', methods=['POST'])
 def download_selected():
@@ -104,14 +97,18 @@ def download_selected():
             try:
                 download_and_convert(song_url, playlist_folder)
             except Exception as e:
-                app.logger.error(f"Error descargando {song_url}: {e}")
-                return f"Error descargando {song_url}: {e}"
+                print(f"Error descargando {song_url}: {e}")
 
-        return f"Descargas completadas para la playlist: {playlist_title}. <a href='{send_from_directory(DOWNLOAD_FOLDER, playlist_title)}'>Descargar ZIP</a>"
+        # Empaquetar la carpeta en un ZIP después de las descargas
+        zip_filename = f"{playlist_title}.zip"
+        zip_filepath = os.path.join(DOWNLOAD_FOLDER, zip_filename)
 
+        shutil.make_archive(zip_filepath.replace('.zip', ''), 'zip', playlist_folder)
+
+        return f"Descargas completadas para la playlist: {playlist_title}. <a href='/downloads/{zip_filename}'>Descargar ZIP</a>"
+    
     except Exception as e:
-        app.logger.error(f"Error en download_selected: {e}")
-        return f"Error en download_selected: {e}"
+        return f"Error: {e}"
 
 def download_and_convert(video_url, playlist_folder):
     try:
@@ -130,16 +127,11 @@ def download_and_convert(video_url, playlist_folder):
             ydl.download([video_url])
 
     except Exception as e:
-        app.logger.error(f"Error descargando o convirtiendo {video_url}: {e}")
-        raise e  # Re-lanza el error para que sea capturado más arriba
+        print(f"Error descargando {video_url}: {e}")
 
 @app.route('/downloads/<filename>')
 def download_file(filename):
-    try:
-        return send_from_directory(DOWNLOAD_FOLDER, filename)
-    except Exception as e:
-        app.logger.error(f"Error descargando el archivo {filename}: {e}")
-        return f"Error descargando el archivo {filename}: {e}"
+    return send_from_directory(DOWNLOAD_FOLDER, filename)
 
 if __name__ == '__main__':
     app.run(debug=True)

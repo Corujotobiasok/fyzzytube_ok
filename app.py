@@ -7,6 +7,7 @@ from io import BytesIO
 
 app = Flask(__name__)
 DOWNLOAD_FOLDER = 'static/downloads/'
+COOKIES_FILE = 'cookies.txt'  # Archivo de cookies
 
 # Asegúrate de que la carpeta de descargas exista
 if not os.path.exists(DOWNLOAD_FOLDER):
@@ -30,8 +31,13 @@ def show_playlist():
             if 'music.youtube.com' not in playlist_url:
                 return f"Error: {playlist_url} no es una URL válida de YouTube Music."
 
-            # Extrae la información de la playlist
-            with yt_dlp.YoutubeDL({'extract_flat': 'in_playlist'}) as ydl:
+            # Extrae la información de la playlist utilizando las cookies
+            ydl_opts = {
+                'extract_flat': 'in_playlist',
+                'cookiefile': COOKIES_FILE  # Usar el archivo de cookies
+            }
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 playlist_info = ydl.extract_info(playlist_url.strip(), download=False)
                 songs = playlist_info['entries']
                 playlist_title = playlist_info['title']
@@ -91,10 +97,10 @@ def download_selected():
 
         with zipfile.ZipFile(zip_buffer, "w") as zip_file:
             for song_url in selected_songs:
-                with yt_dlp.YoutubeDL({'format': 'bestaudio/best'}) as ydl:
+                with yt_dlp.YoutubeDL({'format': 'bestaudio/best', 'cookiefile': COOKIES_FILE}) as ydl:  # Usar el archivo de cookies
                     song_info = ydl.extract_info(song_url, download=False)
                     song_title = song_info['title']
-                    playlist_title = song_info['playlist_title']
+                    playlist_title = song_info.get('playlist_title', 'Sin nombre')
                     song_filename = f'{DOWNLOAD_FOLDER}{song_title}.mp3'
                     
                     # Descarga y conversión a mp3
@@ -106,6 +112,7 @@ def download_selected():
                             'preferredcodec': 'mp3',
                             'preferredquality': '192',
                         }],
+                        'cookiefile': COOKIES_FILE  # Usar el archivo de cookies
                     }
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         ydl.download([song_url])

@@ -1,7 +1,6 @@
-from flask import Flask, request, render_template, send_from_directory
+from flask import Flask, request, render_template, render_template_string, send_from_directory
 import yt_dlp
 import os
-import zipfile
 
 app = Flask(__name__)
 DOWNLOAD_FOLDER = 'static/downloads/'
@@ -44,20 +43,24 @@ def show_playlist():
                     song_title = song['title']
                     response_message += f'<input type="checkbox" name="song_{playlist_url}" value="{song["url"]}" checked> {index}. {song_title}<br>'
 
-                response_message += '<button type="button" onclick="toggleCheckboxes(this)">Seleccionar/Deseleccionar todas</button>'
                 response_message += '</div><br>'
 
         except Exception as e:
             response_message += f"Error procesando '{playlist_url}': {e}<br>"
 
     response_message += '<br><button type="submit">Descargar Seleccionadas</button>'
-    return render_template_string(response_message)
+    return render_template_string(f'''
+    <form method="POST" action="/download_selected">
+        {response_message}
+    </form>
+    ''')
 
 @app.route('/download_selected', methods=['POST'])
 def download_selected():
     try:
         playlists = {}
 
+        # Recoger todas las canciones seleccionadas
         for key in request.form.keys():
             if key.startswith('song_'):
                 playlist_url = key.split('_', 1)[1]

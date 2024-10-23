@@ -103,7 +103,11 @@ def download_selected():
         zip_filename = f"{playlist_title}.zip"
         zip_filepath = os.path.join(DOWNLOAD_FOLDER, zip_filename)
 
-        shutil.make_archive(zip_filepath.replace('.zip', ''), 'zip', playlist_folder)
+        # Solo empaquetamos si la carpeta no está vacía
+        if os.listdir(playlist_folder):
+            shutil.make_archive(zip_filepath.replace('.zip', ''), 'zip', playlist_folder)
+        else:
+            return "Error: No se encontraron archivos para empaquetar."
 
         return f"Descargas completadas para la playlist: {playlist_title}. <a href='/downloads/{zip_filename}'>Descargar ZIP</a>"
     

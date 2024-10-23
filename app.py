@@ -1,7 +1,7 @@
 from flask import Flask, request, render_template, send_from_directory, render_template_string
 import yt_dlp
 import os
-import shutil
+import zipfile
 import subprocess
 
 app = Flask(__name__)
@@ -103,7 +103,7 @@ def download_selected():
         zip_filename = f"{playlist_title}.zip"
         zip_filepath = os.path.join(DOWNLOAD_FOLDER, zip_filename)
 
-        with shutil.ZipFile(zip_filepath, 'w') as zipf:
+        with zipfile.ZipFile(zip_filepath, 'w') as zipf:
             for root, dirs, files in os.walk(playlist_folder):
                 for file in files:
                     zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), playlist_folder))

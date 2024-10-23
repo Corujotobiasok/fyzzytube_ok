@@ -99,6 +99,10 @@ def download_selected():
             except Exception as e:
                 print(f"Error descargando {song_url}: {e}")
 
+        # Verifica si se descargaron archivos antes de crear el ZIP
+        if not os.listdir(playlist_folder):
+            return f"Error: No se encontraron archivos en la carpeta '{playlist_folder}'."
+
         # Empaquetar en ZIP
         zip_filename = f"{playlist_title}.zip"
         zip_filepath = os.path.join(DOWNLOAD_FOLDER, zip_filename)

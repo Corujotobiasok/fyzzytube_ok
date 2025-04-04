@@ -40,7 +40,6 @@ def show_playlist():
             continue
 
         try:
-            # Extrae información de la playlist
             with yt_dlp.YoutubeDL({'extract_flat': 'in_playlist', 'cookiefile': COOKIES_FILE}) as ydl:
                 playlist_info = ydl.extract_info(playlist_url, download=False)
                 songs = playlist_info['entries']
@@ -93,18 +92,15 @@ def download_selected():
         if not os.path.exists(playlist_folder):
             os.makedirs(playlist_folder)
 
-        # Descarga las canciones en la carpeta de la playlist
         for song_url in songs:
             try:
                 download_and_convert(song_url, playlist_folder)
             except Exception as e:
                 print(f"Error descargando {song_url}: {e}")
 
-        # Verifica si se descargaron archivos antes de crear el ZIP
         if not os.listdir(playlist_folder):
             return f"Error: No se encontraron archivos en la carpeta '{playlist_folder}'."
 
-        # Empaquetar en ZIP
         zip_filename = f"{playlist_title}.zip"
         zip_filepath = os.path.join(DOWNLOAD_FOLDER, zip_filename)
 
@@ -121,7 +117,7 @@ def download_selected():
 def download_and_convert(video_url, playlist_folder):
     try:
         ydl_opts = {
-            'format': 'bestaudio/best',  # Descargar solo el mejor audio
+            'format': 'bestaudio/best',
             'outtmpl': os.path.join(playlist_folder, '%(title)s.%(ext)s'),
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
@@ -129,7 +125,7 @@ def download_and_convert(video_url, playlist_folder):
                 'preferredquality': '192',
             }],
             'cookiefile': COOKIES_FILE,
-            'verbose': True  # Activa la salida detallada
+            'verbose': True
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])
@@ -142,4 +138,5 @@ def download_file(filename):
     return send_from_directory(DOWNLOAD_FOLDER, filename)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 10000))  # Render asigna un puerto dinámico
+    app.run(host='0.0.0.0', port=port, debug=True)

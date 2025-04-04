@@ -7,12 +7,8 @@ import time
 import subprocess
 
 app = Flask(__name__)
-DOWNLOAD_FOLDER = 'static/downloads/'
+TEMP_FOLDER = '/tmp'
 COOKIES_FILE = 'cookies.txt'
-
-# Asegurar que la carpeta de descargas exista
-if not os.path.exists(DOWNLOAD_FOLDER):
-    os.makedirs(DOWNLOAD_FOLDER)
 
 def check_ffmpeg():
     """ Verifica si FFmpeg está instalado """
@@ -33,15 +29,15 @@ def index():
 @app.route('/playlist', methods=['POST'])
 def show_playlist():
     playlist_url = request.form['playlist_url'].strip()
-    
+
     if 'music.youtube.com' not in playlist_url:
         return "Error: La URL no es válida para YouTube Music."
 
     try:
         ydl_opts = {
-            'extract_flat': True,  # Para obtener solo los enlaces de las canciones
+            'extract_flat': True,
             'cookiefile': COOKIES_FILE,
-            'force_generic_extractor': True  # Usar el extractor genérico si hay problemas
+            'force_generic_extractor': True
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             playlist_info = ydl.extract_info(playlist_url, download=False)
@@ -50,7 +46,7 @@ def show_playlist():
             return "Error: No se encontraron canciones en la playlist."
 
         songs = playlist_info['entries']
-        playlist_title = playlist_info.get('title', 'Playlist_Sin_Nombre')
+        playlist_title = playlist_info.get('title', 'Playlist_Sin_Nombre').replace(' ', '_')
 
         response_message = f"<h3>{playlist_title}</h3>"
         response_message += '<form action="/download_selected" method="post">'
@@ -83,18 +79,16 @@ def show_playlist():
 @app.route('/download_selected', methods=['POST'])
 def download_selected():
     try:
-        playlist_title = request.form['playlist_title']
+        playlist_title = request.form['playlist_title'].replace(' ', '_')
         songs = request.form.getlist('song')
 
         if not songs:
             return "Error: No seleccionaste ninguna canción para descargar."
 
-        playlist_folder = os.path.join(DOWNLOAD_FOLDER, playlist_title)
-
-        # Si la carpeta ya existe, limpiarla antes de descargar
-        if os.path.exists(playlist_folder):
-            shutil.rmtree(playlist_folder)
-        os.makedirs(playlist_folder)
+        # Crear carpeta temporal única
+        timestamp = str(int(time.time()))
+        playlist_folder = os.path.join(TEMP_FOLDER, f"{playlist_title}_{timestamp}")
+        os.makedirs(playlist_folder, exist_ok=True)
 
         for song_url in songs:
             try:
@@ -103,61 +97,56 @@ def download_selected():
                 print(f"Error descargando {song_url}: {e}")
 
         if not os.listdir(playlist_folder):
-            return f"Error: No se encontraron archivos en la carpeta '{playlist_folder}'."
+            return f"Error: No se descargaron canciones."
 
-        zip_filename = f"{playlist_title}.zip"
-        zip_filepath = os.path.join(DOWNLOAD_FOLDER, zip_filename)
+        zip_filename = f"{playlist_title}_{timestamp}.zip"
+        zip_filepath = os.path.join(TEMP_FOLDER, zip_filename)
 
-        # Crear el ZIP
         with zipfile.ZipFile(zip_filepath, 'w') as zipf:
             for root, _, files in os.walk(playlist_folder):
                 for file in files:
                     zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), playlist_folder))
 
-        return f"Descargas completadas. <br> <a href='/downloads/{zip_filename}'>Descargar ZIP</a>"
+        return f"Descarga lista: <br><a href='/downloads/{zip_filename}?folder={os.path.basename(playlist_folder)}'>Descargar ZIP</a>"
 
     except Exception as e:
         return f"Error: {e}"
 
 def download_and_convert(video_url, playlist_folder):
-    """ Descarga y convierte el video a MP3 """
-    try:
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'outtmpl': os.path.join(playlist_folder, '%(title)s.%(ext)s'),
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-            'cookiefile': COOKIES_FILE,
-            'noplaylist': True  # Forzar descarga de una sola canción
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([video_url])
-    except Exception as e:
-        print(f"Error descargando {video_url}: {e}")
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': os.path.join(playlist_folder, '%(title)s.%(ext)s'),
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+        'cookiefile': COOKIES_FILE,
+        'noplaylist': True
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([video_url])
 
 @app.route('/downloads/<filename>')
 def download_file(filename):
-    """ Permite descargar el ZIP y luego elimina los archivos """
-    zip_filepath = os.path.join(DOWNLOAD_FOLDER, filename)
+    """ Envía el archivo ZIP y elimina el contenido luego de un tiempo """
+    folder = request.args.get('folder', '')
+    zip_path = os.path.join(TEMP_FOLDER, filename)
+    playlist_path = os.path.join(TEMP_FOLDER, folder)
 
-    if not os.path.exists(zip_filepath):
+    if not os.path.exists(zip_path):
         return "Error: El archivo no existe."
 
-    response = send_file(zip_filepath, as_attachment=True)
+    response = send_file(zip_path, as_attachment=True)
 
-    # Espera un poco antes de borrar los archivos para evitar errores
-    time.sleep(5)
+    # Eliminamos después de 5 segundos en segundo plano
+    def eliminar_temporales():
+        time.sleep(5)
+        if os.path.exists(zip_path): os.remove(zip_path)
+        if os.path.exists(playlist_path): shutil.rmtree(playlist_path, ignore_errors=True)
 
-    # Elimina la carpeta de la playlist y el ZIP después de la descarga
-    playlist_folder = os.path.join(DOWNLOAD_FOLDER, filename.replace('.zip', ''))
-    if os.path.exists(playlist_folder):
-        shutil.rmtree(playlist_folder, ignore_errors=True)
-
-    if os.path.exists(zip_filepath):
-        os.remove(zip_filepath)
+    import threading
+    threading.Thread(target=eliminar_temporales).start()
 
     return response
 

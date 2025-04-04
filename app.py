@@ -1,14 +1,16 @@
-from flask import Flask, request, render_template, send_from_directory, render_template_string
+from flask import Flask, request, render_template, send_file, render_template_string
 import yt_dlp
 import os
 import zipfile
+import shutil
+import time
 import subprocess
 
 app = Flask(__name__)
 DOWNLOAD_FOLDER = 'static/downloads/'
 COOKIES_FILE = 'cookies.txt'
 
-# Asegúrate de que la carpeta de descargas exista
+# Asegurar que la carpeta de descargas exista
 if not os.path.exists(DOWNLOAD_FOLDER):
     os.makedirs(DOWNLOAD_FOLDER)
 
@@ -48,8 +50,8 @@ def show_playlist():
                 response_message += f"<h3>{playlist_title}</h3>"
                 response_message += '<form action="/download_selected" method="post">'
                 response_message += f'<input type="hidden" name="playlist_title" value="{playlist_title}">'
-                response_message += '<input type="button" value="Seleccionar Todas" onclick="checkAll(this)">'
-                response_message += '<input type="button" value="Desmarcar Todas" onclick="uncheckAll(this)"><br>'
+                response_message += '<input type="button" value="Seleccionar Todas" onclick="checkAll(this)">' \
+                                     '<input type="button" value="Desmarcar Todas" onclick="uncheckAll(this)"><br>'
 
                 for index, song in enumerate(songs, start=1):
                     song_title = song['title']
@@ -73,7 +75,6 @@ def show_playlist():
                 }
                 </script>
                 '''
-
         except Exception as e:
             response_message += f"Error procesando '{playlist_url}': {e}<br>"
 
@@ -110,7 +111,6 @@ def download_selected():
                     zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), playlist_folder))
 
         return f"Descargas completadas para la playlist: {playlist_title}. <br> <a href='/downloads/{zip_filename}'>Descargar ZIP</a>"
-    
     except Exception as e:
         return f"Error: {e}"
 
@@ -125,18 +125,33 @@ def download_and_convert(video_url, playlist_folder):
                 'preferredquality': '192',
             }],
             'cookiefile': COOKIES_FILE,
-            'verbose': True
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])
-
     except Exception as e:
         print(f"Error descargando {video_url}: {e}")
 
 @app.route('/downloads/<filename>')
 def download_file(filename):
-    return send_from_directory(DOWNLOAD_FOLDER, filename)
+    zip_filepath = os.path.join(DOWNLOAD_FOLDER, filename)
+    
+    if not os.path.exists(zip_filepath):
+        return "Error: El archivo no existe."
+    
+    response = send_file(zip_filepath, as_attachment=True)
+    
+    # Espera un poco antes de borrar los archivos para evitar errores
+    time.sleep(5)
+    
+    # Elimina la carpeta de la playlist y el ZIP después de la descarga
+    playlist_folder = os.path.join(DOWNLOAD_FOLDER, filename.replace('.zip', ''))
+    if os.path.exists(playlist_folder):
+        shutil.rmtree(playlist_folder, ignore_errors=True)
+    
+    if os.path.exists(zip_filepath):
+        os.remove(zip_filepath)
+    
+    return response
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 10000))  # Render asigna un puerto dinámico
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
